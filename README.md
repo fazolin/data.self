@@ -93,4 +93,4 @@ O **interior da obra** (canvas WebGL2) pode quebrar qualquer regra — é o espa
 
 ---
 
-[fazolin.com](https://fazolin.com)
+Caio Fazolin · [fazolin.com](https://fazolin.com) · 2026

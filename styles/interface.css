@@ -195,6 +195,33 @@ body:not([data-state="live"]) .debug,
 body:not([data-state="live"]) .debug-toggle,
 body:not([data-state="live"]) .rec-btn{display:none !important}
 
+/* Assinatura — fixa bottom-center, em todas as telas */
+.sig{
+  position:absolute;
+  bottom:calc(env(safe-area-inset-bottom) + 10px);
+  left:50%;
+  transform:translateX(-50%);
+  z-index:5;
+  font-family:"JetBrains Mono",monospace;
+  font-weight:500;
+  font-size:9px;
+  letter-spacing:0.22em;
+  color:var(--color-signal,#F0F0F0);
+  opacity:0.45;
+  text-transform:uppercase;
+  white-space:nowrap;
+  text-align:center;
+  pointer-events:none;
+}
+.sig a{
+  color:var(--color-mesh,#00FFFF);
+  text-decoration:none;
+  pointer-events:auto;
+}
+.sig a:hover,.sig a:focus-visible{text-decoration:underline}
+/* Em live deixa mais discreto pra não competir com a obra */
+body[data-state="live"] .sig{opacity:0.25;font-size:8px}
+
 /* Tracking panels — HUD sci-fi flutuante */
 .panels{
   position:absolute;inset:0;
