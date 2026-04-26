@@ -1,139 +1,119 @@
 # data.self
 
-Obra interativa client-side. O usuário vira ponto, dado, glitch — uma versão de si mesmo em point cloud, capturada via webcam + MediaPipe, renderizada como `.mov` e entregue de volta.
+Web art interativa, client-side: o usuário vira ponto, dado e glitch. Webcam → MediaPipe FaceLandmarker → nuvem de pontos densa em WebGL2 com curl noise + desintegração + iluminação + glitch + HUD sci-fi. Gravação em 1080p (vídeo + mic) com download automático.
+
+URL pública: https://fazolin.github.io/data.self/
 
 ---
 
 ## Stack
 
-- **Vanilla**: HTML + CSS + JS (ES modules). Sem framework UI.
-- **MediaPipe Tasks Vision** (CDN, WASM) — FaceLandmarker (478) + PoseLandmarker (33). Sem depth raster — landmarks 3D são a base da obra.
-- **WebGL2** via shaders custom (sem three.js inicialmente; reavaliar quando point cloud subir).
-- **MediaRecorder API** + ffmpeg.wasm (se necessário) para entregar `.mov`.
-- **Tudo client-side**. Zero servidor. Zero analytics. Zero CDN além de fontes/MediaPipe.
+- **Vanilla** HTML + CSS + ES Modules. Sem framework, sem bundler.
+- **MediaPipe Tasks Vision** (CDN jsdelivr) — `FaceLandmarker` em modo VIDEO, GPU delegate, 478 landmarks 3D.
+- **WebGL2** — vertex shader com curl noise 3D (Stefan Gustavson simplex), instanced rendering pra trails de desintegração, FBO para post-process.
+- **Canvas2D** sobre WebGL pra HUD (linhas, círculos, glitch squares 8-bit).
+- **DOM overlays** pra tracking panels sci-fi (CSS transforms, lazy-follow).
+- **MediaRecorder API** — captura canvas + mic, encoding mp4/webm conforme browser.
+- **Tudo client-side**. Zero servidor. Modelo MediaPipe baixado do storage.googleapis.com com progresso real (fetch + reader).
 
 ---
 
-## Regra de ouro (herdada de fazolin/design-system)
+## Regra de ouro (herdada do design-system fazolin)
 
-**Interface** (entrada, permissão, loading, erro, HUD, download, créditos) segue o design-system de forma estrita:
+**Interface** (entrada, loading, erro, HUD, debug, terminal, REC) segue design-system estrito:
 - Paleta: `--color-void #000`, `--color-signal #F0F0F0`, `--color-mesh #00FFFF`, `--color-corrupt #FF0033`. Nada fora disso.
-- Tipografia: Oswald 700 (display) + JetBrains Mono 500 (HUD). Nenhuma outra fonte.
-- Sem gradientes, sem border-radius >2px, sem blur decorativo, sem spinners, sem transições >120ms, sem easing curvado, sem libs de componente.
+- Tipografia: Oswald 700 (display) + JetBrains Mono 500 (HUD/labels). Fontes via Google Fonts.
+- Sem gradientes, sem border-radius >2px, sem blur decorativo, sem spinners, transições ≤120ms, easing reto (`steps()`).
 
-**Interior da obra** (canvas WebGL, depth, point cloud, datamosh, áudio-reativo) **pode quebrar qualquer regra**. Lá dentro vale o que a obra pedir.
+**Interior da obra** (canvas WebGL2 + curl + glitch shader + iluminação) **pode quebrar qualquer regra**. Cor, ruído, geometria — livre.
 
-A linha entre os dois é o `<canvas>`. Tudo fora dele = interface. Tudo dentro = obra.
-
----
-
-## Tokens
-
-Importar diretamente do design-system (sem cópia local até haver divergência intencional):
-
-```css
-@import url("https://raw.githubusercontent.com/fazolin/design-system/main/tokens/colors.css");
-@import url("https://raw.githubusercontent.com/fazolin/design-system/main/tokens/typography.css");
-@import url("https://raw.githubusercontent.com/fazolin/design-system/main/tokens/glitch.css");
-```
-
-Se algum import falhar em produção, copiar local em `/tokens/`.
+A linha entre os dois é o `<canvas id="points">`. Tudo dentro = obra. Tudo fora = interface.
 
 ---
 
 ## Estrutura
 
 ```
-/index.html              # entrada única, fullscreen
+/index.html
+/styles/interface.css          # interface estrita (design-system)
 /src/
-  main.js                # bootstrap, permission flow, state machine
+  main.js                      # bootstrap, state machine, render loop
   pipeline/
-    camera.js            # getUserMedia
-    mediapipe.js         # depth + landmarks
-    recorder.js          # MediaRecorder
+    camera.js                  # getUserMedia adaptativo por device
+    face.js                    # FaceLandmarker + fetch do .task com progresso real
   render/
-    depth.frag/.vert     # shaders depth map (etapa 1)
-    pointcloud.*         # etapa 2
-    glitch.*             # etapa 3
+    points-gl.js               # vertex shader principal (curl + disint + light + projeção)
+                               # + post-process glitch shader no MESMO GL context (FBO)
+    glitch-lines.js            # linhas horizontais saindo do FACE_OVAL
+    glitch-squares.js          # tiras 8-bit (8 cells por strip)
   ui/
-    hud.js               # overlay HUD
-    states.js            # loading/error/denied
-/styles/
-  interface.css          # SOMENTE interface, segue design-system
-/public/
-  models/                # MediaPipe .task files (cache local opcional)
+    hud.js                     # STATE / FPS bottom-right
+    terminal.js                # log estilo console com timestamps
+    tracking-panels.js         # painéis DOM sci-fi com X/Y/Z + linhas conectoras
+    recorder.js                # MediaRecorder + canvas offscreen 1080p
 ```
 
 ---
 
-## Estados de interface (todos seguem design-system)
+## Estados
 
-1. **idle** — wordmark `DATA.SELF`, CTA mono `[ INICIAR ]`
-2. **permission** — texto mono pedindo câmera
-3. **loading** — barra de progresso reta carregando modelo MediaPipe (sem spinner)
-4. **denied** — mensagem corrupt `ACESSO NEGADO`
-5. **live** — canvas ocupa tela, HUD mono nos cantos (FPS, status, fx flags)
-6. **recording** — HUD com `REC` corrupt piscando (fx-flash)
-7. **export** — preview + CTA `[ BAIXAR .MOV ]`
-
----
-
-## Fluxo de validação
-
-Cada etapa visual é uma obra de arte e precisa validação do autor antes da próxima.
-
-Ordem:
-1. **Depth map fullscreen** — webcam → MediaPipe depth → shader que mapeia profundidade na paleta da obra (livre). Validar look.
-2. **Point cloud** — depth + RGB → vértices em WebGL2. Validar densidade, tamanho de ponto, comportamento.
-3. **Tracking points** — overlay dos landmarks face/pose. Validar conexões/estética.
-4. **Datamosh / glitch** — feedback de frame, deslocamento por motion vector. Validar.
-5. **Áudio-reativo** (opcional) — microfone modula parâmetros. Validar.
-6. **Gravação + entrega .mov** — MediaRecorder → blob → download.
-
-Não pular etapas. Não acumular features sem validação.
+- **idle** — wordmark `DATA.SELF` com `fx-loud` (RGB shift agressivo), CTA `[ INICIAR ]` glitchado
+- **permission** — solicitando câmera
+- **loading** — barra reta com listras animadas; progresso REAL via fetch byte-a-byte do modelo (3.6MB) + creep fake durante init silencioso
+- **denied** / **incompat** — `ACESSO NEGADO` / `INCOMPATÍVEL` em corrupt
+- **live** — render principal: HUD, debug toggle, REC, terminal log, tracking panels visíveis
+- **recording** — overlay top-center com countdown `REC 0:12 / 0:30`
 
 ---
 
-## Performance & responsividade
+## Pipeline visual (no canvas, durante live)
 
-Funciona em **qualquer device com câmera + WebGL2**: desktop, laptop, tablet, mobile (iOS Safari ≥16, Chrome Android, Firefox).
+1. **Pontos** — barycentric grid sobre tessellation da face (~11k vértices únicos com `?density=N`, default 5).
+2. **Curl noise 3D** (vertex shader, head-local space) — 1 oitava: SIZE / SPEED / AMP / MIX (cutoff via magnitude do próprio curl).
+3. **Máscara de features** — distância mínima a 6 landmarks reais (íris, nariz, boca) → efeitos zerados nos features.
+4. **Disintegration** — regiões definidas por noise espacial 3D, lifecycle com duty cycle, ease-in, fade tardio, drift configurável (X/Y/Z), trails via `gl.drawArraysInstanced` com 5 ecos.
+5. **Iluminação** — luz fixa em head-local `(0, -0.05, -0.55)`. Falloff radial. Multiplicador global por `faceSize` (mais perto = mais bright).
+6. **HUD canvas2D** — glitch lines, glitch squares 8-bit, tracking circles, panel connectors.
+7. **Post-process glitch** (mesmo GL context, FBO sample) — RGB shift, scanlines, tape bands, strobe, desat. Slider AMOUNT 0–1. AMOUNT=0 desliga path inteiro (custo zero).
 
-- Alvo: 60fps em laptop médio (M1 / Ryzen mobile); 30fps mínimo em mobile mid-range.
-- Resolução de câmera adaptativa por device:
-  - desktop: 1280×720
-  - laptop: 960×540
-  - mobile/tablet: 640×360
-  - degradar automaticamente se fps < 24 por 2s
-- Depth model: MediaPipe `depth-estimation` lite (escolher delegate `GPU` quando disponível, fallback `CPU`).
-- Profile com `performance.now()` no HUD desde o início.
+---
 
-### Layout responsivo (interface)
+## Controles (debug panel — tecla D ou botão flutuante)
 
-- **Mobile-first**: tudo desenhado a partir de 360px de largura.
-- Unidades: `dvh`/`dvw` (dynamic viewport) para evitar bug de barra de URL no iOS.
-- Safe areas: `env(safe-area-inset-*)` em todo HUD/CTA para iPhone notch/Dynamic Island.
-- Orientação: **portrait e landscape**. Em portrait mobile, câmera frontal vertical; em landscape, horizontal. Sem forçar rotação.
-- Touch targets ≥44×44px. CTA principal cresce até 56px de altura em mobile.
-- Tipografia fluida via `clamp()` em cima dos tokens (display: `clamp(40px, 10vw, 96px)`; HUD fixo 10–14px).
-- Sem hover-only: todo estado interativo tem versão tap/press.
-- Gestos: tap = iniciar/parar; long-press opcional para modos debug.
-- Câmera: tentar `facingMode: "user"` por padrão; toggle frontal/traseira em mobile.
-- Sem teclado: nenhuma feature crítica depende de keyboard. Atalhos só como bônus em desktop.
+- **POINT**: SIZE, ALPHA, CENTER (raio da máscara de features)
+- **DISINT**: AMOUNT, RATE, DIST, DUTY, DRIFT X/Y/Z
+- **GLITCH**: AMOUNT
+- **LIGHT**: RADIUS
+- **CURL**: SIZE, SPEED, AMP, MIX
 
-### Pipeline responsivo (interior)
+Painel inicia **fechado**. Botão `DEBUG` mesh no canto superior esquerdo abre.
 
-- Canvas usa `devicePixelRatio` clampado a 2 (não renderizar 3x em telas Retina mobile — derruba GPU).
-- Resolução de render desacoplada do tamanho de canvas: `renderScale` adaptativo (1.0 → 0.5) baseado em fps.
-- Point cloud density adapta ao device tier (detectado por `navigator.hardwareConcurrency` + GPU probe inicial).
+---
 
-### Fallbacks
+## URL params
 
-- **Sem WebGL2**: tela `INCOMPATÍVEL` em corrupt, link para fazolin.com.
-- **Sem getUserMedia / câmera negada**: tela `denied`.
-- **Browser muito antigo**: feature detection na entrada, mensagem clara.
+- `?density=N` (1–8) — densidade da malha barycentric. Default 5 (~11k pontos). Mobile mid-range pode usar 3.
+
+---
+
+## Performance
+
+- Alvo: 60fps em laptop médio (M1/Ryzen mobile). 30fps mínimo em mobile.
+- Canvas com `devicePixelRatio` clampado a 2.
+- WebGL2 single GL context — pontos vão pra FBO quando glitch>0 (sem upload), senão direto pro default framebuffer (path rápido).
+- Quando glitch=0 ou recording=off, o post pass é pulado completamente.
+- Quando recording, glitch path é forçado pra que o canvas final contenha o composite (pontos + HUD canvas2D), capturado pelo MediaRecorder.
 
 ---
 
 ## Privacidade
 
-Nada sai do navegador. Sem upload, sem fetch externo durante a sessão (após carregar modelo). O `.mov` é gerado e baixado localmente. Mencionar isso na interface.
+Nada sai do navegador. Sem upload, sem fetch externo durante a sessão (após carregar modelo+WASM). Mic só é solicitado quando usuário clica REC. O `.mp4`/`.webm` é baixado direto do navegador.
+
+---
+
+## Dev
+
+- `index.html` é a entrada. Tudo é arquivo estático — abre via servidor local (Python `http.server` ou qualquer outro).
+- Para testar **mobile na LAN**: `getUserMedia` exige HTTPS fora de localhost. Usar `.dev-https.py` (gitignored) com cert auto-assinado, ou tunnel tipo cloudflared.
+- GitHub Pages serve com HTTPS válido — funciona direto sem setup adicional.
