@@ -1,0 +1,503 @@
+/* data.self — interface only. Segue design-system fazolin estritamente. */
+
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%;background:var(--color-void,#000);color:var(--color-signal,#F0F0F0);overflow:hidden}
+body{
+  font-family:"JetBrains Mono",monospace;
+  font-weight:500;
+  -webkit-font-smoothing:antialiased;
+  -webkit-tap-highlight-color:transparent;
+  user-select:none;
+}
+
+#stage{
+  position:fixed;inset:0;
+  width:100dvw;height:100dvh;
+  display:block;
+  padding:env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+}
+
+/* Video é a camada de fundo: GPU-composited, P&B via CSS filter.
+   Position fixo top-left + transform-origin 0 0; o transform real é setado por JS
+   pra zoom dinâmico no rosto. */
+#video{
+  position:absolute;
+  width:1px;height:1px;
+  opacity:0;
+  pointer-events:none;
+}
+body[data-state="idle"] #video,
+body[data-state="permission"] #video,
+body[data-state="loading"] #video,
+body[data-state="denied"] #video,
+body[data-state="incompat"] #video{display:none}
+
+#points{
+  position:absolute;inset:0;
+  width:100%;height:100%;
+  display:block;
+  background:transparent;
+  z-index:1;
+  pointer-events:none;
+}
+#output{
+  position:absolute;inset:0;
+  width:100%;height:100%;
+  display:block;
+  background:transparent;
+  z-index:2;
+  pointer-events:none;
+}
+/* Glitch on: HUD canvas2D some, pq vira textura no shader composto. */
+body[data-glitch="on"] #output{visibility:hidden}
+/* Sem rosto detectado: esconde painéis também */
+body[data-face="lost"] #panels{visibility:hidden}
+
+/* Screens (estados de interface) */
+.screen{
+  position:absolute;inset:0;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;
+  gap:clamp(16px,3vh,32px);
+  padding:clamp(16px,5vw,48px);
+  text-align:center;
+  z-index:2;
+  background:var(--color-void,#000);
+}
+.screen[hidden]{display:none}
+
+/* Quando estamos em live, screens somem e canvas aparece */
+body[data-state="live"] .screen{display:none}
+body[data-state="recording"] .screen{display:none}
+
+.wordmark{
+  font-family:"Oswald",sans-serif;
+  font-weight:700;
+  text-transform:uppercase;
+  letter-spacing:-0.01em;
+  font-size:clamp(48px,14vw,120px);
+  line-height:.9;
+  color:var(--color-signal,#F0F0F0);
+}
+.tagline{
+  font-family:"JetBrains Mono",monospace;
+  font-weight:500;
+  text-transform:uppercase;
+  letter-spacing:0.18em;
+  font-size:clamp(10px,2.4vw,12px);
+  color:var(--color-signal,#F0F0F0);
+  opacity:.7;
+  max-width:32ch;
+}
+.note{
+  font-family:"JetBrains Mono",monospace;
+  font-weight:500;
+  text-transform:uppercase;
+  letter-spacing:0.16em;
+  font-size:10px;
+  color:var(--color-signal,#F0F0F0);
+  opacity:.4;
+}
+.msg{
+  font-family:"Oswald",sans-serif;
+  font-weight:700;
+  text-transform:uppercase;
+  letter-spacing:-0.005em;
+  font-size:clamp(28px,7vw,56px);
+}
+.msg--corrupt{color:var(--color-corrupt,#FF0033)}
+
+/* CTA */
+.cta{
+  font-family:"JetBrains Mono",monospace;
+  font-weight:500;
+  text-transform:uppercase;
+  letter-spacing:0.16em;
+  font-size:14px;
+  color:var(--color-signal,#F0F0F0);
+  background:transparent;
+  border:1px solid var(--color-signal,#F0F0F0);
+  border-radius:0;
+  padding:18px 28px;
+  min-height:48px;
+  min-width:200px;
+  cursor:pointer;
+  transition:background-color 100ms steps(1,end),color 100ms steps(1,end);
+}
+.cta:hover,.cta:focus-visible{
+  background:var(--color-signal,#F0F0F0);
+  color:var(--color-void,#000);
+  outline:none;
+  animation:fx-jitter 60ms steps(4,end) 1;
+}
+.cta:active{
+  background:var(--color-mesh,#00FFFF);
+  color:var(--color-void,#000);
+  border-color:var(--color-mesh,#00FFFF);
+  animation:fx-flash 80ms steps(2,end) 1;
+}
+
+/* Loading bar (sem spinner) — listras animadas + ease em JS */
+.bar{
+  width:min(80vw,320px);
+  height:2px;
+  background:rgba(240,240,240,0.15);
+  position:relative;
+  overflow:hidden;
+}
+.bar__fill{
+  position:absolute;left:0;top:0;bottom:0;
+  width:0%;
+  background:var(--color-mesh,#00FFFF);
+  overflow:hidden;
+}
+.bar__fill::after{
+  content:"";
+  position:absolute;inset:0;
+  background:repeating-linear-gradient(90deg,
+    rgba(0,0,0,0) 0 4px,
+    rgba(0,0,0,0.45) 4px 6px);
+  animation:bar-stripes 500ms linear infinite;
+}
+@keyframes bar-stripes{
+  0%{background-position:0 0}
+  100%{background-position:12px 0}
+}
+.pct{
+  font-family:"JetBrains Mono",monospace;
+  font-size:10px;
+  letter-spacing:0.2em;
+  color:var(--color-mesh,#00FFFF);
+}
+
+/* HUD */
+.hud{
+  position:absolute;
+  right:calc(env(safe-area-inset-right) + 12px);
+  bottom:calc(env(safe-area-inset-bottom) + 12px);
+  z-index:3;
+  font-family:"JetBrains Mono",monospace;
+  font-weight:500;
+  font-size:10px;
+  letter-spacing:0.14em;
+  text-transform:uppercase;
+  color:var(--color-signal,#F0F0F0);
+  text-align:right;
+  pointer-events:none;
+  mix-blend-mode:difference;
+}
+.hud__row{line-height:1.6}
+.hud[hidden]{display:none}
+/* HUD só em live */
+body:not([data-state="live"]) .hud{display:none}
+
+/* Mostrar debug + rec só na tela live */
+body:not([data-state="live"]) .debug,
+body:not([data-state="live"]) .debug-toggle,
+body:not([data-state="live"]) .rec-btn{display:none !important}
+
+/* Tracking panels — HUD sci-fi flutuante */
+.panels{
+  position:absolute;inset:0;
+  pointer-events:none;
+  z-index:3;
+}
+.tpanel{
+  position:absolute;
+  top:0;left:0;
+  font-family:"JetBrains Mono",monospace;
+  font-weight:500;
+  font-size:9px;
+  letter-spacing:0.1em;
+  color:var(--color-signal,#F0F0F0);
+  background:rgba(0,0,0,0.55);
+  border:1px solid rgba(0,255,255,0.35);
+  padding:5px 8px 6px;
+  pointer-events:none;
+  white-space:nowrap;
+  transform:translate3d(-9999px,-9999px,0);
+  will-change:transform;
+  min-width:90px;
+  line-height:1.3;
+}
+.tpanel::before,
+.tpanel::after{
+  content:"";
+  position:absolute;
+  width:6px;height:6px;
+  pointer-events:none;
+}
+.tpanel::before{
+  top:-1px;left:-1px;
+  border-top:1px solid var(--color-mesh,#00FFFF);
+  border-left:1px solid var(--color-mesh,#00FFFF);
+}
+.tpanel::after{
+  bottom:-1px;right:-1px;
+  border-bottom:1px solid var(--color-mesh,#00FFFF);
+  border-right:1px solid var(--color-mesh,#00FFFF);
+}
+.tpanel__hdr{
+  display:block;
+  color:var(--color-mesh,#00FFFF);
+  font-size:8px;
+  letter-spacing:0.28em;
+  margin-bottom:3px;
+  text-transform:uppercase;
+}
+.tpanel__row{
+  display:grid;
+  grid-template-columns:10px 1fr;
+  gap:6px;
+  font-variant-numeric:tabular-nums;
+}
+.tpanel__axis{
+  color:var(--color-mesh,#00FFFF);
+  opacity:0.6;
+  text-transform:uppercase;
+}
+.tpanel--bang{
+  animation:tpanel-bang 220ms steps(3,end) 1;
+}
+@keyframes tpanel-bang{
+  0%{
+    border-color:var(--color-corrupt,#FF0033);
+    background:rgba(255,0,51,0.18);
+    color:var(--color-corrupt,#FF0033);
+  }
+  100%{
+    border-color:rgba(0,255,255,0.35);
+    background:rgba(0,0,0,0.55);
+    color:var(--color-signal,#F0F0F0);
+  }
+}
+
+/* fx-loud — glitch RGB mais agressivo e mais frequente que fx-alive */
+@keyframes fx-loud{
+  0%,2% {text-shadow:-2px 0 var(--color-mesh),2px 0 var(--color-corrupt);transform:translate(-1px,0)}
+  3% {text-shadow:3px 0 var(--color-corrupt),-3px 0 var(--color-mesh);transform:translate(2px,-1px)}
+  4%,8% {text-shadow:none;transform:translate(0,0)}
+  17%,18% {text-shadow:-3px 0 var(--color-mesh),3px 0 var(--color-corrupt);transform:translate(-2px,0)}
+  19%,28% {text-shadow:none;transform:translate(0,0)}
+  35%,37% {text-shadow:4px 0 var(--color-corrupt),-4px 0 var(--color-mesh);transform:translate(3px,-1px)}
+  38%,52% {text-shadow:none;transform:translate(0,0)}
+  60% {text-shadow:-2px 0 var(--color-mesh-dim),2px 0 var(--color-corrupt-dim)}
+  61%,72% {text-shadow:none;transform:translate(0,0)}
+  78%,80% {text-shadow:2px 0 var(--color-corrupt),-2px 0 var(--color-mesh);transform:translate(0,1px)}
+  81%,92% {text-shadow:none;transform:translate(0,0)}
+  95% {text-shadow:-3px 0 var(--color-mesh),3px 0 var(--color-corrupt);transform:translate(-1px,0)}
+  96%,100% {text-shadow:none;transform:translate(0,0)}
+}
+.fx-loud{animation:fx-loud 3.5s steps(60,end) infinite}
+@media (prefers-reduced-motion:reduce){.fx-loud{animation:none}}
+
+/* Terminal log — feedback estilo console, canto esquerdo embaixo */
+.term{
+  position:absolute;
+  left:calc(env(safe-area-inset-left) + 12px);
+  bottom:calc(env(safe-area-inset-bottom) + 12px);
+  z-index:3;
+  font-family:"JetBrains Mono",monospace;
+  font-weight:500;
+  font-size:10px;
+  letter-spacing:0.06em;
+  line-height:1.5;
+  color:var(--color-signal,#F0F0F0);
+  background:transparent;
+  pointer-events:none;
+  margin:0;
+  max-width:min(60vw,640px);
+  white-space:pre-wrap;
+  mix-blend-mode:difference;
+}
+.term[hidden]{display:none}
+/* Em live, terminal continua visível mas com leve transparência */
+body[data-state="live"] .term{opacity:0.7;font-size:9px}
+.term__line{display:block}
+.term__line--info{color:var(--color-signal,#F0F0F0);opacity:.85}
+.term__line--ok{color:var(--color-mesh,#00FFFF)}
+.term__line--err{color:var(--color-corrupt,#FF0033)}
+
+/* Debug panel — sliders ocultáveis com tecla D */
+.debug{
+  position:absolute;
+  top:calc(env(safe-area-inset-top) + 12px);
+  left:calc(env(safe-area-inset-left) + 12px);
+  z-index:4;
+  font-family:"JetBrains Mono",monospace;
+  font-weight:500;
+  font-size:10px;
+  letter-spacing:0.12em;
+  color:var(--color-signal,#F0F0F0);
+  background:rgba(0,0,0,0.65);
+  border:1px solid rgba(240,240,240,0.2);
+  padding:10px 12px;
+  display:flex;flex-direction:column;gap:4px;
+  min-width:240px;
+  max-height:calc(100dvh - 24px);
+  overflow-y:auto;
+}
+.debug[hidden]{display:none}
+.debug__title{
+  text-transform:uppercase;
+  color:var(--color-mesh,#00FFFF);
+  margin-bottom:4px;
+  letter-spacing:0.18em;
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:12px;
+}
+.debug__close{
+  font-family:"JetBrains Mono",monospace;
+  font-size:14px;
+  line-height:1;
+  color:var(--color-corrupt,#FF0033);
+  background:transparent;
+  border:1px solid var(--color-corrupt,#FF0033);
+  padding:0 6px;
+  cursor:pointer;
+  pointer-events:auto;
+  min-width:20px;
+  min-height:20px;
+  letter-spacing:0;
+}
+.debug__close:hover,.debug__close:focus-visible{
+  background:var(--color-corrupt,#FF0033);
+  color:var(--color-void,#000);
+  outline:none;
+}
+.debug-toggle{
+  position:absolute;
+  top:calc(env(safe-area-inset-top) + 12px);
+  left:calc(env(safe-area-inset-left) + 12px);
+  z-index:4;
+  font-family:"JetBrains Mono",monospace;
+  font-size:10px;
+  font-weight:500;
+  letter-spacing:0.2em;
+  color:var(--color-mesh,#00FFFF);
+  background:rgba(0,0,0,0.65);
+  border:1px solid var(--color-mesh,#00FFFF);
+  padding:8px 12px;
+  cursor:pointer;
+  pointer-events:auto;
+  text-transform:uppercase;
+  min-height:32px;
+}
+.debug-toggle[hidden]{display:none}
+
+/* REC button — top-right */
+.rec-btn{
+  position:absolute;
+  top:calc(env(safe-area-inset-top) + 12px);
+  right:calc(env(safe-area-inset-right) + 12px);
+  z-index:4;
+  font-family:"JetBrains Mono",monospace;
+  font-weight:500;
+  font-size:11px;
+  letter-spacing:0.18em;
+  color:var(--color-corrupt,#FF0033);
+  background:rgba(0,0,0,0.6);
+  border:1px solid var(--color-corrupt,#FF0033);
+  padding:10px 14px;
+  cursor:pointer;
+  pointer-events:auto;
+  text-transform:uppercase;
+  min-height:40px;
+  min-width:100px;
+}
+.rec-btn:hover,.rec-btn:focus-visible{
+  background:var(--color-corrupt,#FF0033);
+  color:var(--color-void,#000);
+  outline:none;
+}
+.rec-btn--rec{
+  background:var(--color-corrupt,#FF0033);
+  color:var(--color-void,#000);
+}
+
+/* REC indicator (top center) */
+.rec-indicator{
+  position:absolute;
+  top:calc(env(safe-area-inset-top) + 12px);
+  left:50%;
+  transform:translateX(-50%);
+  z-index:5;
+  font-family:"JetBrains Mono",monospace;
+  font-weight:500;
+  font-size:11px;
+  letter-spacing:0.22em;
+  color:var(--color-corrupt,#FF0033);
+  background:rgba(0,0,0,0.65);
+  border:1px solid var(--color-corrupt,#FF0033);
+  padding:6px 12px;
+  display:flex;
+  align-items:center;
+  gap:8px;
+  pointer-events:none;
+}
+.rec-indicator[hidden]{display:none}
+.rec-indicator__dot{
+  width:8px;height:8px;
+  background:var(--color-corrupt,#FF0033);
+  animation:rec-pulse 800ms steps(2,end) infinite;
+}
+@keyframes rec-pulse{
+  0%{opacity:1}
+  50%{opacity:0.2}
+  100%{opacity:1}
+}
+
+.debug-toggle:hover,.debug-toggle:focus-visible{
+  background:var(--color-mesh,#00FFFF);
+  color:var(--color-void,#000);
+  outline:none;
+}
+.debug__sub{
+  text-transform:uppercase;
+  letter-spacing:0.2em;
+  color:var(--color-corrupt,#FF0033);
+  margin-top:6px;
+  font-size:9px;
+}
+.debug__row{
+  display:grid;
+  grid-template-columns:48px 1fr 36px;
+  align-items:center;
+  gap:8px;
+  text-transform:uppercase;
+}
+.debug__lbl{opacity:.7}
+.debug__val{text-align:right;color:var(--color-mesh,#00FFFF)}
+.debug input[type="range"]{
+  -webkit-appearance:none;appearance:none;
+  background:transparent;
+  height:16px;
+  width:100%;
+  margin:0;
+}
+.debug input[type="range"]::-webkit-slider-runnable-track{
+  height:1px;
+  background:var(--color-signal,#F0F0F0);
+}
+.debug input[type="range"]::-moz-range-track{
+  height:1px;
+  background:var(--color-signal,#F0F0F0);
+}
+.debug input[type="range"]::-webkit-slider-thumb{
+  -webkit-appearance:none;appearance:none;
+  width:8px;height:8px;
+  background:var(--color-mesh,#00FFFF);
+  border:0;border-radius:0;
+  margin-top:-4px;
+}
+.debug input[type="range"]::-moz-range-thumb{
+  width:8px;height:8px;
+  background:var(--color-mesh,#00FFFF);
+  border:0;border-radius:0;
+}
+
+@media (orientation:landscape) and (max-height:480px){
+  .wordmark{font-size:clamp(36px,10vh,72px)}
+  .screen{gap:12px}
+}

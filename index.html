@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,maximum-scale=1" />
+<meta name="theme-color" content="#000000" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+<meta name="apple-mobile-web-app-title" content="DATA.SELF" />
+<meta name="mobile-web-app-capable" content="yes" />
+<title>DATA.SELF</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Oswald:wght@700&family=JetBrains+Mono:wght@500&display=swap" />
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/fazolin/design-system@main/tokens/colors.css" />
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/fazolin/design-system@main/tokens/typography.css" />
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/fazolin/design-system@main/tokens/glitch.css" />
+<link rel="stylesheet" href="./styles/interface.css" />
+</head>
+<body data-state="idle">
+<main id="stage">
+  <canvas id="points" aria-hidden="true"></canvas>
+  <canvas id="output" aria-hidden="true"></canvas>
+  <video id="video" playsinline autoplay muted aria-hidden="true"></video>
+
+  <section class="screen" data-screen="idle">
+    <h1 class="wordmark fx-loud" data-text="DATA.SELF">DATA.SELF</h1>
+    <p class="tagline fx-alive">UMA VERSÃO SUA EM PONTO, DADO E GLITCH.</p>
+    <button class="cta fx-loud" id="btn-start" type="button">[ INICIAR ]</button>
+    <p class="note">CLIENT-SIDE. NADA SAI DESTE NAVEGADOR.</p>
+  </section>
+
+  <section class="screen" data-screen="permission" hidden>
+    <p class="msg">SOLICITANDO CÂMERA...</p>
+  </section>
+
+  <section class="screen" data-screen="loading" hidden>
+    <p class="msg">CARREGANDO MODELO</p>
+    <div class="bar"><div class="bar__fill" id="bar-fill"></div></div>
+    <p class="pct" id="bar-pct">0%</p>
+  </section>
+
+  <section class="screen" data-screen="denied" hidden>
+    <p class="msg msg--corrupt fx-flash">ACESSO NEGADO</p>
+    <p class="note" id="denied-reason">CÂMERA INDISPONÍVEL.</p>
+    <button class="cta fx-alive" id="btn-retry" type="button">[ TENTAR DE NOVO ]</button>
+  </section>
+
+  <section class="screen" data-screen="incompat" hidden>
+    <p class="msg msg--corrupt fx-flash">INCOMPATÍVEL</p>
+    <p class="note">SEM WEBGL2 / GETUSERMEDIA NESTE NAVEGADOR.</p>
+  </section>
+
+  <div id="panels" class="panels" aria-hidden="true"></div>
+
+  <button class="rec-btn" id="rec-btn" type="button">● REC</button>
+  <div class="rec-indicator" id="rec-indicator" hidden>
+    <span class="rec-indicator__dot"></span>
+    <span class="rec-indicator__text" id="rec-time">REC 0:00 / 0:30</span>
+  </div>
+
+  <pre class="term" id="term" aria-hidden="true" hidden></pre>
+
+  <aside class="debug" id="debug" hidden>
+    <div class="debug__title">
+      <span>DEBUG · [D]</span>
+      <button class="debug__close" id="debug-close" type="button" aria-label="fechar">×</button>
+    </div>
+  </aside>
+  <button class="debug-toggle" id="debug-toggle" type="button" aria-label="abrir debug">DEBUG</button>
+
+  <aside class="hud" id="hud" hidden>
+    <div class="hud__row" id="hud-state">STATE: —</div>
+    <div class="hud__row" id="hud-fps">FPS: —</div>
+    <div class="hud__row" id="hud-err" style="color:var(--color-corrupt,#FF0033)"></div>
+  </aside>
+</main>
+<script type="module" src="./src/main.js"></script>
+</body>
+</html>

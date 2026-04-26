@@ -1,0 +1,18 @@
+# Dev HTTPS server (cert auto-assinado, só pra testar mobile na LAN)
+.dev-cert.pem
+.dev-key.pem
+.dev-https.py
+
+# Claude local data
+.claude/
+
+# Python
+__pycache__/
+*.pyc
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Node (caso alguém adicione)
+node_modules/
